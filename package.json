@@ -1,0 +1,33 @@
+{
+  "name": "qbox-readiness-scanner",
+  "version": "0.1.0",
+  "description": "Offline QBCore to Qbox migration readiness scanner for FiveM servers, with dependency, start-order and duplicate checks.",
+  "type": "module",
+  "bin": {
+    "qrs": "bin/qrs.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "scan:example": "node bin/qrs.js scan fixtures/qbcore-server --all"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "fivem",
+    "qbox",
+    "qbcore",
+    "qbx-core",
+    "migration",
+    "fivem-server",
+    "txadmin",
+    "cli"
+  ],
+  "license": "MIT"
+}

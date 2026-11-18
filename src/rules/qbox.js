@@ -1,0 +1,98 @@
+// QBCore -> Qbox migration readiness. Patterns follow Qbox's own migration docs:
+// https://docs.qbox.re/migrating/scripts and https://docs.qbox.re/migrating/converting-resources
+
+import { activeResources } from '../graph.js';
+import { grep, readCode } from '../code.js';
+import { QBOX_BRIDGE_PROVIDES, QBOX_REPLACED, QBOX_STACK } from '../catalog.js';
+
+/**
+ * @typedef {'ok'|'adapt'|'incompatible'|'replace'|'unknown'|'none'} Verdict
+ * @typedef {{id: string, level: 'adapt'|'incompatible', reason: string, replacement: string, hits: {file: string, line: number}[]}} QboxIssue
+ * @typedef {{resource: string, verdict: Verdict, usesQBCore: boolean, partial: boolean, issues: QboxIssue[], note?: string}} QboxResult
+ */
+
+/** @type {{id: string, level: 'adapt'|'incompatible', re: RegExp, reason: string, replacement: string, requires?: RegExp}[]} */
+export const PATTERNS = [
+  { id: 'QBX-SQL-GROUPS', level: 'incompatible', re: /\bUPDATE\s+`?players`?\s+SET\s+[^'"\n]*\b(?:job|gang)\b/i, reason: 'writes job/gang data straight into the players table', replacement: 'exports.qbx_core:SetJob / AddPlayerToJob (Qbox keeps memberships in player_groups); direct writes corrupt group data' },
+  { id: 'QBX-SQL-PLAYERS', level: 'adapt', re: /\b(?:UPDATE\s+`?players`?\s+SET\s+(?![^'"\n]*\b(?:job|gang)\b)|INSERT\s+INTO\s+`?players`?\b|DELETE\s+FROM\s+`?players`?\b|ALTER\s+TABLE\s+`?players`?\b)/i, reason: 'writes other core player data (money, inventory, metadata) with raw SQL', replacement: 'qbx_core exports for offline players; inventory belongs to ox_inventory' },
+  { id: 'QBX-MULTIJOB', level: 'incompatible', re: /\bCREATE\s+TABLE[^\n]*multi_?jobs?\b|\b(?:FROM|INTO|UPDATE)\s+`?(?:player_jobs|multijobs?)`?\b/i, reason: 'keeps its own multijob tables', replacement: 'Qbox has built-in multijob: exports.qbx_core:AddPlayerToJob and setr qbx:max_jobs_per_player' },
+  { id: 'QBX-INVENTORY', level: 'adapt', re: /exports\s*\[\s*['"]qb-inventory['"]\s*\]/, reason: 'calls qb-inventory exports', replacement: 'ox_inventory exports (e.g. exports.ox_inventory:AddItem)' },
+  { id: 'QBX-INV-EVENTS', level: 'adapt', re: /['"]inventory:(?:server|client):[A-Za-z]+['"]/, reason: 'uses inventory:server/client events', replacement: 'ox_inventory exports and hooks' },
+  { id: 'QBX-ITEM-EVENTS', level: 'adapt', re: /['"]QBCore:Server:(?:AddItem|RemoveItem|UseItem)['"]/, reason: 'uses QBCore:Server:AddItem/RemoveItem/UseItem events (Qbox only warns)', replacement: 'exports.ox_inventory:AddItem / RemoveItem' },
+  { id: 'QBX-PLAYERDATA-ITEMS', level: 'adapt', re: /PlayerData(?:\s*\(\s*\))?\.items\b/, reason: 'reads PlayerData.items (empty on Qbox)', replacement: 'exports.ox_inventory:Search or GetItemCount' },
+  { id: 'QBX-TARGET', level: 'adapt', re: /exports\s*\[\s*['"]qb-target['"]\s*\]/, reason: 'calls qb-target exports', replacement: "ox_target (job = 'police' becomes groups = { police = 0 })" },
+  { id: 'QBX-MENU', level: 'adapt', re: /exports\s*\[\s*['"]qb-(?:menu|input)['"]\s*\]/, reason: 'calls qb-menu / qb-input', replacement: 'lib.registerContext / lib.inputDialog from ox_lib' },
+  { id: 'QBX-PROGRESSBAR', level: 'adapt', re: /exports\s*\[\s*['"]progressbar['"]\s*\]|QBCore\.Functions\.Progressbar\s*\(/, reason: 'uses progressbar (non-blocking on Qbox)', replacement: 'lib.progressBar / lib.progressCircle from ox_lib' },
+  { id: 'QBX-FUEL', level: 'adapt', re: /exports\s*\[\s*['"](?:LegacyFuel|qb-fuel)['"]\s*\]|exports\.LegacyFuel\s*[:.]/, reason: 'reads fuel through LegacyFuel / qb-fuel exports', replacement: 'Entity(vehicle).state.fuel' },
+  { id: 'QBX-GRADES', level: 'adapt', re: /grades\s*\[\s*tostring\s*\(|grades\s*\[\s*['"]\d+['"]\s*\]/, reason: 'indexes job/gang grades with string keys', replacement: 'numeric grade keys: grades[grade]' },
+  { id: 'QBX-ITEM-CALLBACK', level: 'adapt', re: /\bitem\.(?:amount|info)\b/, requires: /CreateUseableItem/, reason: 'useable-item callback reads item.amount / item.info', replacement: 'item.count / item.metadata' },
+  { id: 'QBX-GOD-PERM', level: 'adapt', re: /Commands\.Add\s*\([^\n]*['"]god['"]/, reason: "registers a command with the 'god' permission", replacement: "'group.god' (Qbox uses ACE groups)" },
+  { id: 'QBX-VEHICLE-SHOP', level: 'adapt', re: /Shared\.Vehicles[^\n]*\.shop\b/, reason: 'reads the shop field of QBCore.Shared.Vehicles (removed in Qbox)', replacement: 'qbx_core vehicle data / your own shop config' },
+  { id: 'QBX-CORE-VERSION', level: 'adapt', re: /GetCoreVersion\s*\(/, reason: 'compares GetCoreVersion (returns the qbx_core version on Qbox)', replacement: 'check for qbx_core directly' },
+];
+
+const QBCORE_USE = /GetCoreObject\s*\(|\bQBCore\.|exports\s*\[\s*['"]qb-core['"]\s*\]|['"]QBCore:(?:Client|Server):/;
+
+/**
+ * @param {import('../graph.js').Graph} g
+ * @returns {QboxResult[]}
+ */
+export function qboxAudit(g) {
+  /** @type {QboxResult[]} */
+  const results = [];
+  for (const r of activeResources(g, { allCopies: true })) {
+    const copies = g.byName.get(r.name)?.length || 1;
+    const label = copies > 1 ? r.relDir : r.name;
+    if (QBOX_STACK.test(r.name)) continue;
+
+    if (QBOX_REPLACED[r.name]) {
+      results.push({ resource: label, verdict: 'replace', usesQBCore: true, partial: false, issues: [], note: `replaced by ${QBOX_REPLACED[r.name]}` });
+      continue;
+    }
+
+    const code = readCode(r);
+    const partial = r.escrowed && code.encrypted > 0;
+    /** @type {QboxIssue[]} */
+    const issues = [];
+
+    // Manifest: qb-* dependencies the bridge doesn't provide.
+    const badDeps = r.dependencies.filter((d) => /^qb-/.test(d.value) && !QBOX_BRIDGE_PROVIDES.includes(d.value));
+    if (badDeps.length) {
+      issues.push({
+        id: 'QBX-DEPENDENCY', level: 'adapt',
+        reason: `depends on ${badDeps.map((d) => d.value).join(', ')}, which the Qbox bridge doesn't provide`,
+        replacement: badDeps.map((d) => `${d.value} → ${QBOX_REPLACED[d.value] || 'its Qbox version, or keep it installed'}`).join('; '),
+        hits: badDeps.map((d) => ({ file: 'fxmanifest.lua', line: d.line })),
+      });
+    }
+
+    const allText = code.files.map((f) => f.text).join('\n');
+    for (const p of PATTERNS) {
+      if (p.requires && !p.requires.test(allText)) continue;
+      const hits = grep(r, p.re).map((h) => ({ file: h.file, line: h.line }));
+      if (hits.length) issues.push({ id: p.id, level: p.level, reason: p.reason, replacement: p.replacement, hits });
+    }
+
+    const usesQBCore = QBCORE_USE.test(allText) || r.dependencies.some((d) => d.value === 'qb-core') || r.imports.some((i) => i.resource === 'qb-core');
+
+    /** @type {Verdict} */
+    let verdict;
+    if (issues.some((i) => i.level === 'incompatible')) verdict = 'incompatible';
+    else if (issues.length) verdict = 'adapt';
+    else if (code.files.length === 0 && (r.escrowed || code.encrypted > 0)) verdict = 'unknown';
+    else if (usesQBCore) verdict = partial ? 'unknown' : 'ok';
+    else verdict = partial ? 'unknown' : 'none';
+
+    results.push({ resource: label, verdict, usesQBCore, partial, issues, ...(verdict === 'unknown' ? { note: 'escrowed: code is encrypted, only the manifest and open files were checked' } : {}) });
+  }
+
+  const rank = { incompatible: 0, adapt: 1, replace: 2, unknown: 3, ok: 4, none: 5 };
+  return results.sort((a, b) => rank[a.verdict] - rank[b.verdict] || a.resource.localeCompare(b.resource));
+}
+
+/** Count verdicts. */
+export function summarize(results) {
+  const counts = { ok: 0, adapt: 0, incompatible: 0, replace: 0, unknown: 0, none: 0 };
+  for (const r of results) counts[r.verdict]++;
+  return counts;
+}
