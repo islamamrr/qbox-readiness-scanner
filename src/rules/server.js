@@ -1,9 +1,11 @@
 // Generic server checks (free tier). Each rule is a pure function of the graph.
 
 import { activeResources, suggestOrder } from '../graph.js';
-import { SYSTEMS, LEGACY_SQL } from '../catalog.js';
+import { SYSTEMS, LEGACY_SQL, BUILTIN } from '../catalog.js';
 import { grep, readCode } from '../code.js';
-import { relative } from 'node:path';
+import { looksEncrypted } from '../inventory.js';
+import { readFileSync } from 'node:fs';
+import { relative, join } from 'node:path';
 
 /**
  * @typedef {'error'|'warning'|'info'} Severity
@@ -13,12 +15,35 @@ import { relative } from 'node:path';
 
 const mfile = (r) => relative(r.dir, r.manifestFile);
 
+// An @import only breaks when started too early if the library file itself needs its resource running:
+// ox_lib's init.lua errors unless ox_lib is started, ESX/qbx imports call exports at load time.
+// Plain files (@PolyZone/client.lua, @oxmysql/lib/MySQL.lua, @qb-core/shared/locale.lua) load fine.
+const NEEDS_STARTED = [
+  /GetResourceState\s*\([^)]*\)\s*~=\s*['"]started['"]\s*then\s*(?:--[^\n]*\n\s*)?error\s*\(/,
+  /^(?:local\s+)?[\w.]+\s*=\s*exports(?:\.\w+|\s*\[[^\]]+\])\s*[:.]\s*\w+\s*\(/m,
+];
+const needsCache = new Map();
+/** @returns {boolean} true when the imported file needs its resource started first (or can't be read). */
+export function importNeedsStarted(target, path) {
+  if (/[*?]/.test(path)) return false; // globs pull in data/locale files
+  const file = join(target.dir, path);
+  if (!needsCache.has(file)) {
+    let needs = true;
+    try {
+      const buf = readFileSync(file);
+      needs = looksEncrypted(buf) || NEEDS_STARTED.some((re) => re.test(buf.toString('utf8')));
+    } catch { /* unreadable: stay cautious */ }
+    needsCache.set(file, needs);
+  }
+  return needsCache.get(file);
+}
+
 /** SRS001: declared dependency not installed. */
 export function srs001(g) {
   const out = [];
   for (const r of activeResources(g)) {
     for (const d of r.dependencies) {
-      if (!g.resolve(d.value)) {
+      if (!g.resolve(d.value) && !BUILTIN.includes(d.value)) {
         out.push({ rule: 'SRS001', severity: 'error', resource: r.name, message: `depends on '${d.value}', which is not installed`, file: mfile(r), line: d.line, fix: `install '${d.value}' or remove the dependency` });
       }
     }
@@ -35,7 +60,7 @@ export function srs002(g) {
     const declared = new Set(r.dependencies.map((d) => g.resolve(d.value)?.name).filter(Boolean));
     for (const imp of r.imports) {
       const target = g.resolve(imp.resource);
-      if (!target || declared.has(target.name)) continue;
+      if (!target || declared.has(target.name) || !importNeedsStarted(target, imp.path)) continue;
       const idx = g.startIndex.get(target.name);
       const sameCategory = g.startOrder[myIdx]?.via === 'category' && g.startOrder[idx]?.category === g.startOrder[myIdx]?.category;
       if (idx !== undefined && idx > myIdx && !sameCategory) {
@@ -83,7 +108,7 @@ export function srs004(g) {
       const esc = name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
       if (new RegExp(`GetResourceState\\s*\\(\\s*['"]${esc}['"]`).test(allText) || /\bpcall\s*\(/.test(lineText) || /(^|[\\/])(config|bridges?|frameworks?|compat|integrations?)[\\/]|^config\.lua$/i.test(hit.file)) { seen.add(name); continue; }
       seen.add(name);
-      if (!g.resolve(name)) {
+      if (!g.resolve(name) && !BUILTIN.includes(name)) {
         out.push({ rule: 'SRS004', severity: 'warning', resource: r.name, message: `calls exports of '${name}', which is not installed`, file: hit.file, line: hit.line, fix: `install '${name}', or this feature will error at runtime` });
       }
     }
@@ -133,7 +158,7 @@ export function srs008(g) {
       const declared = new Set(r.dependencies.map((d) => g.resolve(d.value)?.name).filter(Boolean));
       for (const imp of r.imports) {
         const t = g.resolve(imp.resource);
-        if (!t || !members.has(t.name) || declared.has(t.name)) continue;
+        if (!t || !members.has(t.name) || declared.has(t.name) || !importNeedsStarted(t, imp.path)) continue;
         const tIdx = g.startIndex.get(t.name);
         if (tIdx !== undefined && tIdx > myIdx && g.startOrder[tIdx].category === c.name) internal.push(`${name} needs ${t.name}`);
       }

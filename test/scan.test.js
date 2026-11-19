@@ -94,3 +94,22 @@ test('console report renders without color codes when disabled', () => {
   assert.ok(out.includes('QBOX READINESS'));
   assert.ok(!out.includes('\x1b['));
 });
+
+test('useable-item rule only counts files with a callback, once per line', () => {
+  const r = scan({ root: join(fixtures, 'item-callback') });
+  const kit = r.qbox.results.find((x) => x.resource === 'evidence-kit');
+  const cb = kit.issues.find((i) => i.id === 'QBX-ITEM-CALLBACK');
+  assert.deepEqual(cb.hits, [{ file: 'server.lua', line: 4 }, { file: 'server.lua', line: 5 }]);
+});
+
+test('plain @imports and FXServer built-ins (chat, yarn) are not reported', () => {
+  const r = scan({ root: join(fixtures, 'recipe-order') });
+  assert.deepEqual(r.findings.filter((f) => f.resource !== 'appearance'), []);
+  assert.equal(r.ensure.order[0], 'chat'); // suggested ensure lines keep built-ins
+});
+
+test('exports behind a GetResourceState check are optional, unguarded ones still count', () => {
+  const r = scan({ root: join(fixtures, 'recipe-order') });
+  const app = r.qbox.results.find((x) => x.resource === 'appearance');
+  assert.deepEqual(app.issues.map((i) => i.id), ['QBX-INVENTORY']);
+});

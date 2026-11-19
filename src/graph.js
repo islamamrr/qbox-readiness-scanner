@@ -1,5 +1,7 @@
 // Turns inventory + cfg into a resource graph with an effective start order.
 
+import { BUILTIN } from './catalog.js';
+
 /**
  * @typedef {import('./inventory.js').Resource} Resource
  * @typedef {import('./cfg.js').ParsedCfg} ParsedCfg
@@ -56,6 +58,11 @@ export function buildGraph(resources, cfg) {
         continue;
       }
       const res = resolve(c.name);
+      if (!res && BUILTIN.includes(c.name)) {
+        // shipped with FXServer: keep it in the order so suggested ensure lines don't drop it
+        if (!startOrder.some((s) => s.name === c.name)) startOrder.push({ name: c.name, by: { file: c.file, line: c.line }, via: 'cfg' });
+        continue;
+      }
       if (!res) {
         missingEnsures.push({ name: c.name, file: c.file, line: c.line });
         continue;
@@ -69,7 +76,11 @@ export function buildGraph(resources, cfg) {
     const place = (name, stack) => {
       if (placed.has(name) || stack.has(name)) return;
       const res = resolve(name);
-      if (!res) return;
+      if (!res) {
+        const builtin = startOrder.find((s) => s.name === name && BUILTIN.includes(name));
+        if (builtin) { placed.add(name); expanded.push(builtin); }
+        return;
+      }
       stack.add(name);
       for (const d of res.dependencies) {
         const dep = resolve(d.value);

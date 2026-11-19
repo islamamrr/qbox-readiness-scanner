@@ -31,6 +31,18 @@ export const PATTERNS = [
   { id: 'QBX-CORE-VERSION', level: 'adapt', re: /GetCoreVersion\s*\(/, reason: 'compares GetCoreVersion (returns the qbx_core version on Qbox)', replacement: 'check for qbx_core directly' },
 ];
 
+/**
+ * exports['qb-target'] etc. behind a GetResourceState('qb-target') check is an optional integration:
+ * multi-framework scripts (illenium-appearance, xt-prison) fall back to ox_target when it isn't running.
+ */
+function isOptionalExport(match, allText) {
+  const m = /exports\s*(?:\[\s*['"]([^'"]+)['"]\s*\]|\.([A-Za-z_]\w*))/.exec(match);
+  const name = m && (m[1] || m[2]);
+  if (!name) return false;
+  const esc = name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+  return new RegExp(`GetResourceState\\s*\\(\\s*['"]${esc}['"]`).test(allText);
+}
+
 const QBCORE_USE = /GetCoreObject\s*\(|\bQBCore\.|exports\s*\[\s*['"]qb-core['"]\s*\]|['"]QBCore:(?:Client|Server):/;
 
 /**
@@ -68,8 +80,19 @@ export function qboxAudit(g) {
 
     const allText = code.files.map((f) => f.text).join('\n');
     for (const p of PATTERNS) {
-      if (p.requires && !p.requires.test(allText)) continue;
-      const hits = grep(r, p.re).map((h) => ({ file: h.file, line: h.line }));
+      // `requires` is checked per file: a hit only counts in a file that also has the context
+      // (e.g. item.amount in a client config loop is not a useable-item callback).
+      const okFiles = p.requires ? new Set(code.files.filter((f) => p.requires.test(f.text)).map((f) => f.rel)) : null;
+      if (okFiles && okFiles.size === 0) continue;
+      const seen = new Set();
+      const hits = [];
+      for (const h of grep(r, p.re)) {
+        const key = `${h.file}:${h.line}`;
+        if ((okFiles && !okFiles.has(h.file)) || seen.has(key)) continue; // one hit per line
+        if (isOptionalExport(h.match, allText)) continue;
+        seen.add(key);
+        hits.push({ file: h.file, line: h.line });
+      }
       if (hits.length) issues.push({ id: p.id, level: p.level, reason: p.reason, replacement: p.replacement, hits });
     }
 

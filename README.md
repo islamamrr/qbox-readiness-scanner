@@ -48,7 +48,7 @@ The patterns come from Qbox's own migration docs: [script migration](https://doc
 | Rule | Check |
 | --- | --- |
 | SRS001 | A declared dependency isn't installed |
-| SRS002 | A resource loads `@other/file.lua` but `other` starts after it |
+| SRS002 | A resource loads `@other/file.lua` that needs `other` running (e.g. `@ox_lib/init.lua`), but `other` starts after it |
 | SRS003 | A loaded `@resource` file's resource is missing or never started |
 | SRS004 | Exports are called on a resource that isn't installed (optional integrations are skipped) |
 | SRS005 | Two folders share one resource name |

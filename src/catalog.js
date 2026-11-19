@@ -33,3 +33,6 @@ export const QBOX_REPLACED = {
 
 /** Resources that are part of the Qbox/ox stack itself; never audited for migration. */
 export const QBOX_STACK = /^(qbx_|ox_|oxmysql$|pma-voice$|screenshot-basic$|npwd$)/;
+
+/** Resources bundled with FXServer itself (citizen/system_resources), so they need no folder. */
+export const BUILTIN = ['chat', 'monitor', 'webpack', 'yarn'];
