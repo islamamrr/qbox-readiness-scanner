@@ -26,7 +26,7 @@ export const PATTERNS = [
   { id: 'QBX-FUEL', level: 'adapt', re: /exports\s*\[\s*['"](?:LegacyFuel|qb-fuel)['"]\s*\]|exports\.LegacyFuel\s*[:.]/, reason: 'reads fuel through LegacyFuel / qb-fuel exports', replacement: 'Entity(vehicle).state.fuel' },
   { id: 'QBX-GRADES', level: 'adapt', re: /grades\s*\[\s*tostring\s*\(|grades\s*\[\s*['"]\d+['"]\s*\]/, reason: 'indexes job/gang grades with string keys', replacement: 'numeric grade keys: grades[grade]' },
   { id: 'QBX-ITEM-CALLBACK', level: 'adapt', re: /\bitem\.(?:amount|info)\b/, requires: /CreateUseableItem/, reason: 'useable-item callback reads item.amount / item.info', replacement: 'item.count / item.metadata' },
-  { id: 'QBX-GOD-PERM', level: 'adapt', re: /Commands\.Add\s*\([^\n]*['"]god['"]/, reason: "registers a command with the 'god' permission", replacement: "'group.god' (Qbox uses ACE groups)" },
+  { id: 'QBX-GOD-PERM', level: 'adapt', re: /Commands\.Add\s*\([^\n]*['"]god['"]/, reason: "registers a command with the 'god' permission (becomes group.god, which Qbox doesn't create by default)", replacement: "'admin' → group.admin (Qbox maps qbcore.god/admin/mod to group.admin/mod/support)" },
   { id: 'QBX-VEHICLE-SHOP', level: 'adapt', re: /Shared\.Vehicles[^\n]*\.shop\b/, reason: 'reads the shop field of QBCore.Shared.Vehicles (removed in Qbox)', replacement: 'qbx_core vehicle data / your own shop config' },
   { id: 'QBX-CORE-VERSION', level: 'adapt', re: /GetCoreVersion\s*\(/, reason: 'compares GetCoreVersion (returns the qbx_core version on Qbox)', replacement: 'check for qbx_core directly' },
 ];

@@ -113,3 +113,9 @@ test('exports behind a GetResourceState check are optional, unguarded ones still
   const app = r.qbox.results.find((x) => x.resource === 'appearance');
   assert.deepEqual(app.issues.map((i) => i.id), ['QBX-INVENTORY']);
 });
+
+test("'god' commands point at group.admin, which Qbox creates by default", () => {
+  const r = scan({ root: join(fixtures, 'item-callback') });
+  const god = r.qbox.results.find((x) => x.resource === 'admin-tools').issues.find((i) => i.id === 'QBX-GOD-PERM');
+  assert.ok(god.replacement.includes('group.admin'));
+});
