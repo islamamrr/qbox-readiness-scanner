@@ -7,6 +7,9 @@ import { parseManifest, manifestDependencies, manifestImports } from './manifest
 
 const CODE_EXT = /\.(lua|js)$/i;
 const SKIP_DIRS = new Set(['node_modules', '.git', 'stream', 'html', 'web', 'ui', 'nui', 'dist-ui']);
+// Install notes and edits for *other* resources (e.g. ps-housing's "README - INSTALL INSTRUCTIONS/QBCore/qb-doorlock")
+// are never loaded, so their code must not count against this resource.
+const DOC_DIR = /readme|instructions|^(?:docs?|examples?|install(?:ation)?|\.github)$/i;
 const MAX_CODE_BYTES = 1_000_000;
 const MAX_CODE_FILES = 400;
 
@@ -37,7 +40,9 @@ function listCodeFiles(dir) {
     for (const e of ents) {
       const p = join(d, e.name);
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name.toLowerCase())) walk(p);
+        // A sub-folder with its own manifest is a separate (unloaded) resource copy, not part of this one.
+        const nested = existsSync(join(p, 'fxmanifest.lua')) || existsSync(join(p, '__resource.lua'));
+        if (!SKIP_DIRS.has(e.name.toLowerCase()) && !DOC_DIR.test(e.name) && !nested) walk(p);
       } else if (CODE_EXT.test(e.name) && !/^(fxmanifest|__resource)\.lua$/i.test(e.name)) {
         try { if (statSync(p).size <= MAX_CODE_BYTES) out.push(p); } catch { /* unreadable */ }
       }

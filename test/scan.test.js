@@ -119,3 +119,10 @@ test("'god' commands point at group.admin, which Qbox creates by default", () =>
   const god = r.qbox.results.find((x) => x.resource === 'admin-tools').issues.find((i) => i.id === 'QBX-GOD-PERM');
   assert.ok(god.replacement.includes('group.admin'));
 });
+
+test('install-note folders and nested resource copies inside a resource are not scanned', () => {
+  const r = scan({ root: join(fixtures, 'docs-folder') });
+  const h = r.qbox.results.find((x) => x.resource === 'housing');
+  assert.equal(h.verdict, 'none');
+  assert.deepEqual(r.findings.filter((f) => f.rule === 'SRS004'), []);
+});
