@@ -36,7 +36,7 @@ The exit code is 1 when an error-level problem is found, so you can use it in CI
 | --- | --- |
 | **incompatible** | Would corrupt or fight Qbox's data, for example writing job/gang data straight into `players` or keeping its own multijob tables |
 | **adapt** | Works only after changes, for example qb-inventory, qb-target or qb-menu calls, string grade keys, `PlayerData.items` |
-| **replace** | The Qbox stack replaces it outright (qb-core → qbx_core, qb-inventory → ox_inventory, qb-target → ox_target, …) |
+| **replace** | The Qbox stack replaces it outright (qb-core → qbx_core, qb-inventory → ox_inventory, qb-garages → qbx_garages, …), per Qbox's [resource equivalents](https://docs.qbox.re/migrating/resources) |
 | **unknown** | Escrowed (encrypted) code: only the manifest and open files could be checked |
 | **bridge-OK** | Uses QBCore only through APIs the Qbox bridge covers (needs `setr qbx:enableBridge "true"`) |
 | **no QBCore use** | Doesn't touch QBCore at all |
@@ -69,12 +69,13 @@ Run against the included example server (`node bin/qrs.js scan fixtures/qbcore-s
 
 ```
 QBOX READINESS
-  1 incompatible  3 adapt  3 replace  1 unknown  2 bridge-OK  6 no QBCore use
-  incompatible   my-multijob    writes job/gang data straight into the players table; keeps its own multijob tables
-  adapt          [qb]/qb-shops  depends on qb-inventory, which the Qbox bridge doesn't provide; calls qb-inventory exports (2×); …
-  adapt          police-job     indexes job/gang grades with string keys; registers a command with the 'god' permission
-  replace        qb-inventory   replaced by ox_inventory
-  unknown        fancy-hud      escrowed: code is encrypted, only the manifest and open files were checked
+  1 incompatible  3 adapt  4 replace  1 unknown  1 bridge-OK  6 no QBCore use
+  incompatible   my-multijob       writes job/gang data straight into the players table; keeps its own multijob tables; …
+  adapt          [qb]/corner-shop  depends on qb-inventory, which the Qbox bridge doesn't provide; calls qb-inventory exports (2×); …
+  adapt          police-job        indexes job/gang grades with string keys; registers a command with the 'god' permission
+  replace        qb-inventory      replaced by ox_inventory
+  replace        qb-phone          replaced by NPWD with qbx_npwd
+  unknown        fancy-hud         escrowed: code is encrypted, only the manifest and open files were checked
 
 SERVER CHECKS  3 errors · 6 warnings · 3 info
   ERROR   SRS002 police-job loads @ox_lib/init.lua but 'ox_lib' starts after it [police-job/fxmanifest.lua:4]

@@ -25,7 +25,7 @@ test('server checks find each planted problem', () => {
   for (const expected of [
     'SRS001:car-dealer',   // qb-vehicleshop missing
     'SRS002:police-job',   // @ox_lib imported, ox_lib ensured later
-    'SRS005:qb-shops',     // two folders
+    'SRS005:corner-shop',     // two folders
     'SRS004:car-dealer',   // exports['ps-fuel'] missing
     'SRS006:-',            // lb-phone + qb-phone
     'SRS008:-',            // [jobs] alphabetical order
@@ -57,7 +57,7 @@ test('job writes are incompatible, other raw player writes only need adapting', 
 
 test('Qbox verdicts', () => {
   assert.equal(verdict(qb, 'my-multijob'), 'incompatible');
-  assert.equal(verdict(qb, '[qb]/qb-shops'), 'adapt');
+  assert.equal(verdict(qb, '[qb]/corner-shop'), 'adapt');
   assert.equal(verdict(qb, 'police-job'), 'adapt');
   assert.equal(verdict(qb, 'car-dealer'), 'adapt');
   assert.equal(verdict(qb, 'qb-inventory'), 'replace');
@@ -67,7 +67,7 @@ test('Qbox verdicts', () => {
 });
 
 test('commented-out code is ignored', () => {
-  const shops = qb.qbox.results.find((x) => x.resource === '[qb]/qb-shops');
+  const shops = qb.qbox.results.find((x) => x.resource === '[qb]/corner-shop');
   const inv = shops.issues.find((i) => i.id === 'QBX-INVENTORY');
   assert.equal(inv.hits.length, 2);
 });
@@ -82,7 +82,7 @@ test('suggested order puts ox_lib before police-job and jobs-lib before garage-a
 
 test('free JSON has counts but no file/line locations', () => {
   const json = JSON.parse(renderJson(qb));
-  const shops = json.qbox.results.find((x) => x.resource === '[qb]/qb-shops');
+  const shops = json.qbox.results.find((x) => x.resource === '[qb]/corner-shop');
   const inv = shops.issues.find((i) => i.id === 'QBX-INVENTORY');
   assert.equal(inv.count, 2);
   assert.equal(inv.hits, undefined);
@@ -125,4 +125,13 @@ test('install-note folders and nested resource copies inside a resource are not 
   const h = r.qbox.results.find((x) => x.resource === 'housing');
   assert.equal(h.verdict, 'none');
   assert.deepEqual(r.findings.filter((f) => f.rule === 'SRS004'), []);
+});
+
+test('QBCore.Functions.Progressbar is bridge-OK; only the progressbar export needs work; stock qb-* resources are replaced', () => {
+  const r = scan({ root: join(fixtures, 'bridge-calls') });
+  assert.equal(verdict(r, 'crafting-table'), 'ok');
+  assert.equal(verdict(r, 'old-bars'), 'adapt');
+  const g = r.qbox.results.find((x) => x.resource === 'qb-garages');
+  assert.equal(g.verdict, 'replace');
+  assert.ok(g.note.includes('qbx_garages'));
 });

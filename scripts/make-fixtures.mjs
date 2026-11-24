@@ -47,9 +47,9 @@ w(`${S}/resources/[qb]/qb-target/fxmanifest.lua`, fx(`client_script 'client.lua'
 w(`${S}/resources/[qb]/qb-target/client.lua`, `-- target\n`);
 w(`${S}/resources/[qb]/qb-phone/fxmanifest.lua`, fx(`dependency 'qb-core'\nclient_script 'client.lua'\n`));
 w(`${S}/resources/[qb]/qb-phone/client.lua`, `local QBCore = exports['qb-core']:GetCoreObject()\n`);
-w(`${S}/resources/[qb]/qb-shops/fxmanifest.lua`, fx(`dependencies { 'qb-core', 'qb-inventory' }\nserver_script 'server.lua'\nclient_script 'client.lua'\n`));
-w(`${S}/resources/[qb]/qb-shops/server.lua`, `local QBCore = exports['qb-core']:GetCoreObject()
-RegisterNetEvent('qb-shops:server:buy', function(item, amount)
+w(`${S}/resources/[qb]/corner-shop/fxmanifest.lua`, fx(`dependencies { 'qb-core', 'qb-inventory' }\nserver_script 'server.lua'\nclient_script 'client.lua'\n`));
+w(`${S}/resources/[qb]/corner-shop/server.lua`, `local QBCore = exports['qb-core']:GetCoreObject()
+RegisterNetEvent('corner-shop:server:buy', function(item, amount)
   local src = source
   -- exports['qb-inventory']:RemoveItem(src, 'old', 1)  (commented out: must not count)
   exports['qb-inventory']:AddItem(src, item, amount)
@@ -57,13 +57,13 @@ RegisterNetEvent('qb-shops:server:buy', function(item, amount)
   TriggerEvent('inventory:server:OpenInventory', 'shop', 'itemshop_1')
 end)
 `);
-w(`${S}/resources/[qb]/qb-shops/client.lua`, `local QBCore = exports['qb-core']:GetCoreObject()
+w(`${S}/resources/[qb]/corner-shop/client.lua`, `local QBCore = exports['qb-core']:GetCoreObject()
 local items = QBCore.Functions.GetPlayerData().items
 exports['qb-target']:AddBoxZone('shop', vector3(0,0,0), 1, 1, {}, {})
 `);
 // an old copy left behind -> duplicate name
-w(`${S}/resources/[old]/qb-shops/fxmanifest.lua`, fx(`server_script 'server.lua'\n`));
-w(`${S}/resources/[old]/qb-shops/server.lua`, `-- old copy\n`);
+w(`${S}/resources/[old]/corner-shop/fxmanifest.lua`, fx(`server_script 'server.lua'\n`));
+w(`${S}/resources/[old]/corner-shop/server.lua`, `-- old copy\n`);
 
 w(`${S}/resources/[jobs]/police-job/fxmanifest.lua`, fx(`shared_scripts {\n  '@ox_lib/init.lua',\n  'config.lua',\n}\nserver_script 'server.lua'\ndependency 'qb-core'\n`));
 w(`${S}/resources/[jobs]/police-job/config.lua`, `Config = {}\n`);
