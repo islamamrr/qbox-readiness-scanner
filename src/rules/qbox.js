@@ -44,6 +44,13 @@ function isOptionalExport(match, allText) {
   return new RegExp(`GetResourceState\\s*\\(\\s*['"]${esc}['"]`).test(allText);
 }
 
+// qb-* resources Qbox replaces whose exports aren't covered elsewhere: not bridged, not handled by a
+// specific pattern above, and not qb-phone (Renewed's phone still ships under that name).
+const OWN_RULE = ['qb-core', 'qb-inventory', 'qb-target', 'qb-menu', 'qb-input', 'qb-phone'];
+const REPLACED_EXPORT_NAMES = Object.keys(QBOX_REPLACED)
+  .filter((n) => n.startsWith('qb-') && !OWN_RULE.includes(n) && !QBOX_BRIDGE_PROVIDES.includes(n));
+const REPLACED_EXPORT = new RegExp(`exports\\s*\\[\\s*['"](${REPLACED_EXPORT_NAMES.map((n) => n.replace(/-/g, '\\-')).join('|')})['"]\\s*\\]`);
+
 const QBCORE_USE = /GetCoreObject\s*\(|\bQBCore\.|exports\s*\[\s*['"]qb-core['"]\s*\]|['"]QBCore:(?:Client|Server):/;
 
 /**
@@ -80,6 +87,25 @@ export function qboxAudit(g) {
     }
 
     const allText = code.files.map((f) => f.text).join('\n');
+
+    // Exports of other replaced qb-* resources (e.g. qb-smallresources:HasHarness) error on Qbox.
+    const gone = new Map();
+    for (const h of grep(r, REPLACED_EXPORT)) {
+      const name = h.groups[0];
+      if (isOptionalExport(h.match, allText) || (g.providers.get(name)?.length)) continue;
+      if (!gone.has(name)) gone.set(name, []);
+      const hits = gone.get(name);
+      if (!hits.some((x) => x.file === h.file && x.line === h.line)) hits.push({ file: h.file, line: h.line });
+    }
+    if (gone.size) {
+      issues.push({
+        id: 'QBX-REPLACED-EXPORTS', level: 'adapt',
+        reason: `calls exports of ${[...gone.keys()].join(', ')}, which Qbox replaces`,
+        replacement: [...gone.keys()].map((n) => `${n} → ${QBOX_REPLACED[n]}`).join('; '),
+        hits: [...gone.values()].flat(),
+      });
+    }
+
     for (const p of PATTERNS) {
       // `requires` is checked per file: a hit only counts in a file that also has the context
       // (e.g. item.amount in a client config loop is not a useable-item callback).

@@ -26,6 +26,9 @@ export const QBOX_REPLACED = {
   'connectqueue': 'qbx_core (the connection queue is built in)',
   'qb-spawn': 'qbx_spawn',
   'qb-inventory': 'ox_inventory',
+  // qb-inventory forks: qbx_core only works with ox_inventory ("qb-inventory is not compatible with qbx_core")
+  'ps-inventory': 'ox_inventory (Qbox only supports ox_inventory)',
+  'lj-inventory': 'ox_inventory (Qbox only supports ox_inventory)',
   'qb-weapons': 'ox_inventory (weapons, ammo and attachments are items)',
   'qb-shops': 'ox_inventory (shops live in ox_inventory/data/shops.lua)',
   'qb-crafting': 'ox_inventory (benches live in ox_inventory/data/crafting.lua)',

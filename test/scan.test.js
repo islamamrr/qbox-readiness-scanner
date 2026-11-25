@@ -135,3 +135,20 @@ test('QBCore.Functions.Progressbar is bridge-OK; only the progressbar export nee
   assert.equal(g.verdict, 'replace');
   assert.ok(g.note.includes('qbx_garages'));
 });
+
+test('qb-inventory forks are replaced by ox_inventory', () => {
+  const r = scan({ root: join(fixtures, 'community-scripts') });
+  assert.equal(verdict(r, 'lj-inventory'), 'replace');
+  assert.ok(r.qbox.results.find((x) => x.resource === 'lj-inventory').note.includes('ox_inventory'));
+});
+
+test('exports of replaced qb-* resources need adapting unless guarded, bridged or provided', () => {
+  const r = scan({ root: join(fixtures, 'community-scripts') });
+  const hud = r.qbox.results.find((x) => x.resource === 'street-hud');
+  assert.equal(hud.verdict, 'adapt');
+  const ex = hud.issues.find((i) => i.id === 'QBX-REPLACED-EXPORTS');
+  assert.ok(ex.reason.includes('qb-smallresources'));
+  assert.ok(!ex.reason.includes('qb-radialmenu')); // guarded by GetResourceState; the commented line is ignored
+  assert.deepEqual(ex.hits, [{ file: 'client.lua', line: 4 }]);
+  assert.equal(verdict(r, 'bank-app'), 'ok'); // qb-management is bridged, qb-phone is left alone
+});

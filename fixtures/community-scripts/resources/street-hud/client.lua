@@ -1,0 +1,6 @@
+local QBCore = exports['qb-core']:GetCoreObject()
+CreateThread(function()
+    -- exports['qb-radialmenu']:AddOption({}) (commented out, ignored)
+    local hasHarness = exports['qb-smallresources']:HasHarness()
+    print(hasHarness, QBCore.Functions.GetPlayerData().job.name)
+end)
