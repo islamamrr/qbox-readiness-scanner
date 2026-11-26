@@ -51,3 +51,15 @@ export function grep(r, re) {
   }
   return out;
 }
+
+/**
+ * True when the code checks whether `name` is running before using it — GetResourceState('name'),
+ * or the isStarted('name') helper that jim_bridge and similar libraries wrap around it — so calls into
+ * it are an optional integration.
+ * @param {string} name resource name
+ * @param {string} allText the resource's code
+ */
+export function checksResourceState(name, allText) {
+  const esc = name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
+  return new RegExp(`(?:\\bGetResourceState|\\bisStarted)\\s*\\(\\s*['"]${esc}['"]`).test(allText);
+}

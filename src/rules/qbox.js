@@ -2,7 +2,7 @@
 // https://docs.qbox.re/migrating/scripts and https://docs.qbox.re/migrating/converting-resources
 
 import { activeResources } from '../graph.js';
-import { grep, readCode } from '../code.js';
+import { checksResourceState, grep, readCode } from '../code.js';
 import { QBOX_BRIDGE_PROVIDES, QBOX_REPLACED, QBOX_STACK } from '../catalog.js';
 
 /**
@@ -33,15 +33,14 @@ export const PATTERNS = [
 ];
 
 /**
- * exports['qb-target'] etc. behind a GetResourceState('qb-target') check is an optional integration:
+ * exports['qb-target'] etc. behind a GetResourceState('qb-target') (or isStarted('qb-target')) check is an optional integration:
  * multi-framework scripts (illenium-appearance, xt-prison) fall back to ox_target when it isn't running.
  */
 function isOptionalExport(match, allText) {
   const m = /exports\s*(?:\[\s*['"]([^'"]+)['"]\s*\]|\.([A-Za-z_]\w*))/.exec(match);
   const name = m && (m[1] || m[2]);
   if (!name) return false;
-  const esc = name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
-  return new RegExp(`GetResourceState\\s*\\(\\s*['"]${esc}['"]`).test(allText);
+  return checksResourceState(name, allText);
 }
 
 // qb-* resources Qbox replaces whose exports aren't covered elsewhere: not bridged, not handled by a

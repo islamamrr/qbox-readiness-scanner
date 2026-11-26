@@ -2,7 +2,7 @@
 
 import { activeResources, suggestOrder } from '../graph.js';
 import { SYSTEMS, LEGACY_SQL, BUILTIN } from '../catalog.js';
-import { grep, readCode } from '../code.js';
+import { checksResourceState, grep, readCode } from '../code.js';
 import { looksEncrypted } from '../inventory.js';
 import { readFileSync } from 'node:fs';
 import { relative, join } from 'node:path';
@@ -103,10 +103,9 @@ export function srs004(g) {
     for (const hit of grep(r, EXPORT_RE)) {
       const name = hit.groups[0] || hit.groups[1];
       if (!name || name === r.name || seen.has(name)) continue;
-      // Optional integrations: guarded by GetResourceState or wrapped in pcall, or chosen in a config file.
+      // Optional integrations: guarded by GetResourceState / isStarted or wrapped in pcall, or chosen in a config file.
       const lineText = code.files.find((f) => f.rel === hit.file)?.lines[hit.line - 1] || '';
-      const esc = name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&');
-      if (new RegExp(`GetResourceState\\s*\\(\\s*['"]${esc}['"]`).test(allText) || /\bpcall\s*\(/.test(lineText) || /(^|[\\/])(config|bridges?|frameworks?|compat|integrations?)[\\/]|^config\.lua$/i.test(hit.file)) { seen.add(name); continue; }
+      if (checksResourceState(name, allText) || /\bpcall\s*\(/.test(lineText) || /(^|[\\/])(config|bridges?|frameworks?|compat|integrations?)[\\/]|^config\.lua$/i.test(hit.file)) { seen.add(name); continue; }
       seen.add(name);
       if (!g.resolve(name) && !BUILTIN.includes(name)) {
         out.push({ rule: 'SRS004', severity: 'warning', resource: r.name, message: `calls exports of '${name}', which is not installed`, file: hit.file, line: hit.line, fix: `install '${name}', or this feature will error at runtime` });

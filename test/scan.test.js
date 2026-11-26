@@ -152,3 +152,10 @@ test('exports of replaced qb-* resources need adapting unless guarded, bridged o
   assert.deepEqual(ex.hits, [{ file: 'client.lua', line: 4 }]);
   assert.equal(verdict(r, 'bank-app'), 'ok'); // qb-management is bridged, qb-phone is left alone
 });
+
+test('isStarted() guards (jim_bridge style) count as optional integrations', () => {
+  const r = scan({ root: join(fixtures, 'community-scripts') });
+  assert.equal(verdict(r, 'till-payments'), 'ok'); // qb-banking only behind isStarted("qb-banking")
+  const banks = r.findings.filter((f) => f.rule === 'SRS004' && f.resource === 'till-payments' && !f.message.includes("'qb-core'"));
+  assert.deepEqual(banks, []); // qb-banking / okokBanking / Renewed-Banking are all optional here
+});
